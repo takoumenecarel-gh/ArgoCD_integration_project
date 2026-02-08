@@ -19,7 +19,7 @@ env:
   DEPLOYMENT_NAME: focus-deployment
   CONTAINER_NAME: focus-timer
   K8S_NAMESPACE: dev
-  DEPLOYMENT_FILE_PATH: ./focus-timer-app/focus-deployment.yaml  # adjust if your file is elsewhere
+  DEPLOYMENT_FILE_PATH: ./focus-timer-app/focus-deployment.yaml  # adjust path if needed
 
 jobs:
   build-scan-push-deploy:
@@ -37,35 +37,50 @@ jobs:
           role-to-assume: ${{ env.OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3. Create ECR repository if missing
+      # 3. Ensure EKS access
+      - name: Create EKS access entry
+        run: |
+          aws eks create-access-entry \
+            --cluster-name $EKS_CLUSTER_NAME \
+            --principal-arn $OIDC_ROLE_ARN \
+            --type STANDARD || echo "Access entry exists"
+
+      - name: Associate EKS access policy
+        run: |
+          aws eks associate-access-policy \
+            --cluster-name $EKS_CLUSTER_NAME \
+            --principal-arn $OIDC_ROLE_ARN \
+            --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+            --access-scope type=cluster || echo "Policy exists"
+
+      # 4. Create ECR repository if needed
       - name: Create ECR repository
         uses: int128/create-ecr-repository-action@v1
         with:
           repository: ${{ env.IMAGE_NAME }}
           region: ${{ env.AWS_REGION }}
 
-      # 4. Login to Amazon ECR
+      # 5. Login to ECR
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 5. Build Docker image tagged with commit SHA
+      # 6. Build Docker image tagged with run number
       - name: Build Docker image
         run: |
-          echo "Using commit SHA: $GITHUB_SHA"
-          docker build -t $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA ./focus-timer-app
-          docker tag $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA $ECR_REGISTRY/$IMAGE_NAME:latest
+          docker build -t $ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }} ./focus-timer-app
+          docker tag $ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }} $ECR_REGISTRY/$IMAGE_NAME:latest
 
-      # 6. Login to ECR explicitly for Trivy
+      # 7. Login to ECR explicitly for Trivy
       - name: Login to ECR for Trivy
         run: |
           aws ecr get-login-password --region $AWS_REGION | \
           docker login --username AWS --password-stdin $ECR_REGISTRY
 
-      # 7. Trivy Vulnerability Scan (optimized for ECR images)
+      # 8. Trivy vulnerability scan
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          image-ref: $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
+          image-ref: $ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }}
           severity: CRITICAL,HIGH
           exit-code: 0
           ignore-unfixed: true
@@ -74,26 +89,26 @@ jobs:
         env:
           AWS_REGION: ${{ env.AWS_REGION }}
 
-      # 8. Push Docker image to ECR
+      # 9. Push Docker image to ECR
       - name: Push Docker image
         run: |
-          docker push $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
+          docker push $ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }}
           docker push $ECR_REGISTRY/$IMAGE_NAME:latest
 
-      # 9. Update kubeconfig
+      # 10. Update kubeconfig
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
 
-      # 10. Ensure namespace exists
+      # 11. Ensure namespace exists
       - name: Ensure namespace exists
         run: |
           kubectl get namespace $K8S_NAMESPACE || kubectl create namespace $K8S_NAMESPACE
 
-      # 11. Deploy to EKS safely using set image
+      # 12. Deploy to EKS safely using set image
       - name: Deploy to EKS
         run: |
           kubectl set image deployment/$DEPLOYMENT_NAME \
-            $CONTAINER_NAME=$ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA \
+            $CONTAINER_NAME=$ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }} \
             -n $K8S_NAMESPACE
           kubectl rollout status deployment/$DEPLOYMENT_NAME -n $K8S_NAMESPACE
