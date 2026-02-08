@@ -129,7 +129,7 @@ jobs:
       # ---------------------------
       - name: Deploy to EKS
         run: |
-          sed -i "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }}|g" ./deployment.yaml
+          sed -i "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }}|g" ./focus-deployment.yaml
           kubectl apply -f ./focus-deployment.yaml
 
       # ---------------------------
