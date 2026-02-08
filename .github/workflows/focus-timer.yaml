@@ -19,123 +19,71 @@ env:
   DEPLOYMENT_NAME: focus-deployment
   CONTAINER_NAME: focus-timer
   K8S_NAMESPACE: dev
-  DEPLOYMENT_FILE_PATH: ./focus-timer-app/focus-deployment.yaml   # <-- update this if your YAML is elsewhere
+  DEPLOYMENT_FILE_PATH: ./focus-timer-app/focus-deployment.yaml  # Adjust if YAML is elsewhere
 
 jobs:
   build-scan-push-deploy:
     runs-on: ubuntu-latest
 
     steps:
-
-      # ---------------------------
       # 1. Checkout source
-      # ---------------------------
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # ---------------------------
       # 2. AWS OIDC Authentication
-      # ---------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ---------------------------
-      # 3. Configure EKS Access (optional)
-      # ---------------------------
-      - name: Create EKS access entry (if not exists)
-        run: |
-          aws eks create-access-entry \
-            --cluster-name $EKS_CLUSTER_NAME \
-            --principal-arn $OIDC_ROLE_ARN \
-            --type STANDARD || echo "Access entry exists"
-
-      - name: Associate EKS access policy (if not exists)
-        run: |
-          aws eks associate-access-policy \
-            --cluster-name $EKS_CLUSTER_NAME \
-            --principal-arn $OIDC_ROLE_ARN \
-            --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-            --access-scope type=cluster || echo "Policy exists"
-
-      # ---------------------------
-      # 4. Create ECR repository
-      # ---------------------------
-      - name: Create ECR repository if needed
+      # 3. Create ECR repository if missing
+      - name: Create ECR repository
         uses: int128/create-ecr-repository-action@v1
         with:
           repository: ${{ env.IMAGE_NAME }}
           region: ${{ env.AWS_REGION }}
 
-      # ---------------------------
-      # 5. Login to Amazon ECR
-      # ---------------------------
+      # 4. Login to Amazon ECR
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # ---------------------------
-      # 6. Build Docker Image
-      # ---------------------------
+      # 5. Build Docker image tagged with commit SHA
       - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./focus-timer-app
-          push: false
-          tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+        run: |
+          echo "Using commit SHA: $GITHUB_SHA"
+          docker build -t $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA ./focus-timer-app
+          docker tag $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA $ECR_REGISTRY/$IMAGE_NAME:latest
 
-      # ---------------------------
-      # 7. Trivy Security Scan
-      # ---------------------------
+      # 6. Trivy Security Scan
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          image-ref: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          image-ref: $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
           severity: CRITICAL,HIGH
           exit-code: 0
           ignore-unfixed: true
 
-      # ---------------------------
-      # 8. Push Docker Image
-      # ---------------------------
-      - name: Push image to Amazon ECR
-        uses: docker/build-push-action@v5
-        with:
-          context: ./focus-timer-app
-          push: true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      # 7. Push Docker image to ECR
+      - name: Push Docker image
+        run: |
+          docker push $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
+          docker push $ECR_REGISTRY/$IMAGE_NAME:latest
 
-      # ---------------------------
-      # 9. Update kubeconfig
-      # ---------------------------
+      # 8. Update kubeconfig
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig \
-            --region $AWS_REGION \
-            --name $EKS_CLUSTER_NAME
+          aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
 
-      # ---------------------------
-      # 10. Ensure namespace exists
-      # ---------------------------
+      # 9. Ensure namespace exists
       - name: Ensure namespace exists
         run: |
           kubectl get namespace $K8S_NAMESPACE || kubectl create namespace $K8S_NAMESPACE
 
-      # ---------------------------
-      # 11. Deploy to EKS
-      # ---------------------------
+      # 10. Deploy to EKS safely using set image
       - name: Deploy to EKS
         run: |
-          sed -i "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }}|g" $DEPLOYMENT_FILE_PATH
-          kubectl apply -f $DEPLOYMENT_FILE_PATH
-
-      # ---------------------------
-      # 12. Verify rollout
-      # ---------------------------
-      - name: Verify rollout status
-        run: |
+          kubectl set image deployment/$DEPLOYMENT_NAME \
+            $CONTAINER_NAME=$ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA \
+            -n $K8S_NAMESPACE
           kubectl rollout status deployment/$DEPLOYMENT_NAME -n $K8S_NAMESPACE
