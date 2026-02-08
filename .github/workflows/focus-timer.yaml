@@ -40,7 +40,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ---------------------------
-      # 3. Create ECR repository 
+      # 3. Create ECR repository if needed
       # ---------------------------
       - name: Create ECR repository
         uses: int128/create-ecr-repository-action@v1
@@ -58,12 +58,9 @@ jobs:
       # 5. Build Docker Image
       # ---------------------------
       - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./focus-timer-app
-          push: false
-          tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }} ./focus-timer-app
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }} ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       # ---------------------------
       # 6. Trivy Vulnerability Scan
@@ -80,13 +77,9 @@ jobs:
       # 7. Push Docker Image to ECR
       # ---------------------------
       - name: Push image to ECR
-        uses: docker/build-push-action@v5
-        with:
-          context: ./focus-timer-app
-          push: true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       # ---------------------------
       # 8. Setup kubectl
@@ -103,8 +96,7 @@ jobs:
         run: |
           aws eks update-kubeconfig \
             --name ${{ env.EKS_CLUSTER_NAME }} \
-            --region ${{ env.AWS_REGION }} \
-            --role-arn ${{ secrets.AWS_ROLE_ARN_OIDC }}
+            --region ${{ env.AWS_REGION }}
 
       # ---------------------------
       # 10. Create dev namespace if missing
@@ -114,11 +106,56 @@ jobs:
           kubectl get namespace ${{ env.K8S_NAMESPACE }} || kubectl create namespace ${{ env.K8S_NAMESPACE }}
 
       # ---------------------------
-      # 11. Deploy Docker image to EKS
+      # 11. Create/Update Deployment
       # ---------------------------
       - name: Deploy to EKS
         run: |
-          kubectl -n ${{ env.K8S_NAMESPACE }} set image deployment/${{ env.DEPLOYMENT_NAME }} \
-            ${{ env.CONTAINER_NAME }}=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
-          kubectl -n ${{ env.K8S_NAMESPACE }} rollout status deployment/${{ env.DEPLOYMENT_NAME }}
+          # Check if deployment exists
+          if kubectl get deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.K8S_NAMESPACE }} 2>/dev/null; then
+            echo "Deployment exists, updating image..."
+            kubectl -n ${{ env.K8S_NAMESPACE }} set image deployment/${{ env.DEPLOYMENT_NAME }} \
+              ${{ env.CONTAINER_NAME }}=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          else
+            echo "Creating new deployment..."
+            kubectl create deployment ${{ env.DEPLOYMENT_NAME }} \
+              --image=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }} \
+              --replicas=2 \
+              --port=3000 \
+              -n ${{ env.K8S_NAMESPACE }}
+            
+            # Label the pods for service selection
+            kubectl -n ${{ env.K8S_NAMESPACE }} label deployment/${{ env.DEPLOYMENT_NAME }} app=${{ env.CONTAINER_NAME }}
+          fi
+          
+          # Wait for rollout
+          kubectl -n ${{ env.K8S_NAMESPACE }} rollout status deployment/${{ env.DEPLOYMENT_NAME }} --timeout=5m
+
+      # ---------------------------
+      # 12. Expose service if needed
+      # ---------------------------
+      - name: Expose service
+        run: |
+          # Check if service exists
+          if ! kubectl get service ${{ env.DEPLOYMENT_NAME }}-service -n ${{ env.K8S_NAMESPACE }} 2>/dev/null; then
+            echo "Creating service..."
+            kubectl expose deployment ${{ env.DEPLOYMENT_NAME }} \
+              --name=${{ env.DEPLOYMENT_NAME }}-service \
+              --type=LoadBalancer \
+              --port=80 \
+              --target-port=3000 \
+              -n ${{ env.K8S_NAMESPACE }}
+          fi
+
+      # ---------------------------
+      # 13. Show deployment status
+      # ---------------------------
+      - name: Show deployment info
+        run: |
+          echo "=== Pods ==="
           kubectl -n ${{ env.K8S_NAMESPACE }} get pods -l app=${{ env.CONTAINER_NAME }}
+          
+          echo "=== Services ==="
+          kubectl -n ${{ env.K8S_NAMESPACE }} get svc
+          
+          echo "=== Deployment Details ==="
+          kubectl -n ${{ env.K8S_NAMESPACE }} describe deployment/${{ env.DEPLOYMENT_NAME }}
