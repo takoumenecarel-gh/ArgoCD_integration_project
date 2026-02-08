@@ -19,7 +19,7 @@ env:
   DEPLOYMENT_NAME: focus-deployment
   CONTAINER_NAME: focus-timer
   K8S_NAMESPACE: dev
-  DEPLOYMENT_FILE_PATH: ./focus-timer-app/focus-deployment.yaml  # Adjust if YAML is elsewhere
+  DEPLOYMENT_FILE_PATH: ./focus-timer-app/focus-deployment.yaml  # adjust if your file is elsewhere
 
 jobs:
   build-scan-push-deploy:
@@ -55,7 +55,7 @@ jobs:
           docker build -t $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA ./focus-timer-app
           docker tag $ECR_REGISTRY/$IMAGE_NAME:$GITHUB_SHA $ECR_REGISTRY/$IMAGE_NAME:latest
 
-      # 6. Trivy Security Scan
+      # 6. Trivy Vulnerability Scan (faster, image-only)
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@0.20.0
         with:
@@ -63,6 +63,8 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: 0
           ignore-unfixed: true
+          scan-type: image   # ensures only image layers are scanned, faster
+          format: table
 
       # 7. Push Docker image to ECR
       - name: Push Docker image
