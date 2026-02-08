@@ -14,7 +14,7 @@ env:
   AWS_REGION: us-east-1
   IMAGE_NAME: focus-timer
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
-  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}    # Add this secret
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
   DEPLOYMENT_NAME: focus-deployment
   CONTAINER_NAME: focus
   K8S_NAMESPACE: dev
@@ -25,13 +25,13 @@ jobs:
 
     steps:
       # ---------------------------
-      # Checkout repository
+      # 1. Checkout source
       # ---------------------------
       - name: Checkout source
         uses: actions/checkout@v4
 
       # ---------------------------
-      # AWS OIDC Authentication
+      # 2. AWS OIDC Authentication
       # ---------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -40,7 +40,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ---------------------------
-      # Create ECR Repository if needed
+      # 3. Create ECR repository if needed
       # ---------------------------
       - name: Create ECR repository
         uses: int128/create-ecr-repository-action@v1
@@ -49,13 +49,13 @@ jobs:
           region: ${{ env.AWS_REGION }}
 
       # ---------------------------
-      # Login to Amazon ECR
+      # 4. Login to Amazon ECR
       # ---------------------------
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
       # ---------------------------
-      # Build Docker Image
+      # 5. Build Docker Image
       # ---------------------------
       - name: Build Docker image
         uses: docker/build-push-action@v5
@@ -66,7 +66,7 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
 
       # ---------------------------
-      # Trivy Vulnerability Scan
+      # 6. Trivy Vulnerability Scan
       # ---------------------------
       - name: Trivy scan
         uses: aquasecurity/trivy-action@0.20.0
@@ -77,7 +77,7 @@ jobs:
           ignore-unfixed: true
 
       # ---------------------------
-      # Push Docker Image to ECR
+      # 7. Push Docker Image to ECR
       # ---------------------------
       - name: Push image to ECR
         uses: docker/build-push-action@v5
@@ -89,7 +89,7 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       # ---------------------------
-      # Setup kubectl
+      # 8. Setup kubectl
       # ---------------------------
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
@@ -97,7 +97,7 @@ jobs:
           version: 'v1.29.0'
 
       # ---------------------------
-      # Update kubeconfig for EKS (must come before kubectl commands!)
+      # 9. Update kubeconfig for EKS
       # ---------------------------
       - name: Update kubeconfig
         run: |
@@ -107,14 +107,14 @@ jobs:
             --role-arn ${{ secrets.AWS_ROLE_ARN_OIDC }}
 
       # ---------------------------
-      # Create dev namespace if missing
+      # 10. Create dev namespace if missing
       # ---------------------------
       - name: Create dev namespace
         run: |
           kubectl get namespace ${{ env.K8S_NAMESPACE }} || kubectl create namespace ${{ env.K8S_NAMESPACE }}
 
       # ---------------------------
-      # Deploy Docker image to EKS
+      # 11. Deploy Docker image to EKS
       # ---------------------------
       - name: Deploy to EKS
         run: |
