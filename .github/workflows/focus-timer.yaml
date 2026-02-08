@@ -73,15 +73,15 @@ jobs:
         with:
           version: 'v1.29.0'
 
-      # 9. Update kubeconfig and debug
+      # 9. Update kubeconfig and check EKS connectivity (FIXED)
       - name: Update kubeconfig and check EKS
         run: |
           echo "Updating kubeconfig..."
           aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
           
           echo "Checking cluster connectivity..."
-          kubectl version --short
-          kubectl get nodes
+          kubectl version --client
+          kubectl cluster-info
 
           echo "Describe cluster for debug:"
           aws eks describe-cluster --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
