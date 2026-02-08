@@ -12,12 +12,12 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  IMAGE_NAME: focus-timer
+  IMAGE_NAME: journal
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
   OIDC_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_OIDC }}
-  DEPLOYMENT_NAME: focus-deployment
-  CONTAINER_NAME: focus-timer
+  DEPLOYMENT_NAME: journal-deployment
+  CONTAINER_NAME: journal
   K8S_NAMESPACE: dev
 
 jobs:
@@ -109,7 +109,7 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       # ---------------------------
-      # 9. Update kubeconfig for EKS
+      # 9. Update kubeconfig
       # ---------------------------
       - name: Update kubeconfig
         run: |
@@ -118,7 +118,14 @@ jobs:
             --name $EKS_CLUSTER_NAME
 
       # ---------------------------
-      # 10. Deploy to EKS (Rolling Update)
+      # 10. Ensure namespace exists (FIX)
+      # ---------------------------
+      - name: Ensure namespace exists
+        run: |
+          kubectl get namespace $K8S_NAMESPACE || kubectl create namespace $K8S_NAMESPACE
+
+      # ---------------------------
+      # 11. Deploy to EKS
       # ---------------------------
       - name: Deploy to EKS
         run: |
@@ -127,7 +134,7 @@ jobs:
           -n $K8S_NAMESPACE
 
       # ---------------------------
-      # 11. Verify rollout
+      # 12. Verify rollout
       # ---------------------------
       - name: Verify rollout status
         run: |
