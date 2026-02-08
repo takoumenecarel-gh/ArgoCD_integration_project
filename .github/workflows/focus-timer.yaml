@@ -40,7 +40,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ---------------------------
-      # 3. Create ECR repository if needed
+      # 3. Create ECR repository 
       # ---------------------------
       - name: Create ECR repository
         uses: int128/create-ecr-repository-action@v1
