@@ -1,4 +1,4 @@
-name: Build, Scan & Push Nginx App to ECR
+name: journal pipeline
 
 on:
   push:

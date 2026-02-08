@@ -1,4 +1,4 @@
-name: Build, Scan & Push Nginx App to ECR
+name: focus pipeline
 
 on:
   push:
