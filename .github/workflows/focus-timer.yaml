@@ -1,4 +1,4 @@
-name: focus pipeline
+name: journal pipeline
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: ["main"]
 
 permissions:
-  id-token: write       # Required for OIDC
+  id-token: write
   contents: read
 
 env:
@@ -15,45 +15,70 @@ env:
   IMAGE_NAME: focus-timer
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
-  DEPLOYMENT_NAME: focus-deployment
-  CONTAINER_NAME: focus
-  K8S_NAMESPACE: dev
+  OIDC_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_OIDC }}
 
 jobs:
-  build-scan-push-deploy:
+  build-scan-push:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout source
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # 2. Configure AWS credentials
+      # --------------------------
+      # AWS Auth (OIDC)
+      # ---------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_OIDC }}
+          role-to-assume: ${{ env.OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3. Create ECR repository if needed
-      - name: Create ECR repository
+      # ---------------------------
+      # OPTIONAL - Configure EKS Access (SAFE)
+      # ---------------------------
+      - name: Create EKS access entry (if not exists)
+        run: |
+          aws eks create-access-entry \
+            --cluster-name $EKS_CLUSTER_NAME \
+            --principal-arn $OIDC_ROLE_ARN \
+            --type STANDARD || echo "Access entry already exists"
+
+      - name: Associate EKS access policy (if not exists)
+        run: |
+          aws eks associate-access-policy \
+            --cluster-name $EKS_CLUSTER_NAME \
+            --principal-arn $OIDC_ROLE_ARN \
+            --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+            --access-scope type=cluster || echo "Policy already associated"
+
+      # ---------------------------
+      # Create ECR Repository
+      # ---------------------------
+      - name: Create ECR repository if needed
         uses: int128/create-ecr-repository-action@v1
         with:
           repository: ${{ env.IMAGE_NAME }}
           region: ${{ env.AWS_REGION }}
 
-      # 4. Login to Amazon ECR
-      - name: Login to ECR
+      - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 5. Build Docker image
+      # ---------------------------
+      # Build Docker Image
+      # ---------------------------
       - name: Build Docker image
-        run: |
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }} ./focus-timer-app
-          docker tag ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }} ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        uses: docker/build-push-action@v5
+        with:
+          context: ./focus-timer-app
+          push: false
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
 
-      # 6. Trivy Vulnerability Scan
-      - name: Trivy scan
+      # ---------------------------
+      # Trivy Scan
+      # ---------------------------
+      - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
@@ -61,87 +86,14 @@ jobs:
           exit-code: 1
           ignore-unfixed: true
 
-      # 7. Push Docker Image to ECR
-      - name: Push image to ECR
-        run: |
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-      # 8. Setup kubectl
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+      # ---------------------------
+      # Push Image
+      # ---------------------------
+      - name: Push image to Amazon ECR
+        uses: docker/build-push-action@v5
         with:
-          version: 'v1.29.0'
-
-      # 9. Update kubeconfig and check EKS connectivity (FIXED)
-      - name: Update kubeconfig and check EKS
-        run: |
-          echo "Updating kubeconfig..."
-          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
-          
-          echo "Checking cluster connectivity..."
-          kubectl version --client
-          kubectl cluster-info
-
-          echo "Describe cluster for debug:"
-          aws eks describe-cluster --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
-
-      # 10. Create dev namespace if missing
-      - name: Create dev namespace
-        run: |
-          if ! kubectl get namespace ${{ env.K8S_NAMESPACE }} >/dev/null 2>&1; then
-            echo "Creating namespace ${{ env.K8S_NAMESPACE }}"
-            kubectl create namespace ${{ env.K8S_NAMESPACE }}
-          else
-            echo "Namespace ${{ env.K8S_NAMESPACE }} exists"
-          fi
-
-      # 11. Create/Update Deployment
-      - name: Deploy to EKS
-        run: |
-          IMAGE=${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
-
-          if kubectl get deployment ${{ env.DEPLOYMENT_NAME }} -n ${{ env.K8S_NAMESPACE }} >/dev/null 2>&1; then
-            echo "Deployment exists, updating image..."
-            kubectl -n ${{ env.K8S_NAMESPACE }} set image deployment/${{ env.DEPLOYMENT_NAME }} \
-              ${{ env.CONTAINER_NAME }}=$IMAGE
-          else
-            echo "Creating new deployment..."
-            kubectl create deployment ${{ env.DEPLOYMENT_NAME }} \
-              --image=$IMAGE \
-              --replicas=2 \
-              --port=3000 \
-              -n ${{ env.K8S_NAMESPACE }}
-            
-            kubectl -n ${{ env.K8S_NAMESPACE }} label deployment/${{ env.DEPLOYMENT_NAME }} app=${{ env.CONTAINER_NAME }}
-          fi
-          
-          echo "Waiting for rollout..."
-          kubectl -n ${{ env.K8S_NAMESPACE }} rollout status deployment/${{ env.DEPLOYMENT_NAME }} --timeout=5m
-
-      # 12. Expose service if needed
-      - name: Expose service
-        run: |
-          if ! kubectl get service ${{ env.DEPLOYMENT_NAME }}-service -n ${{ env.K8S_NAMESPACE }} >/dev/null 2>&1; then
-            echo "Creating LoadBalancer service..."
-            kubectl expose deployment ${{ env.DEPLOYMENT_NAME }} \
-              --name=${{ env.DEPLOYMENT_NAME }}-service \
-              --type=LoadBalancer \
-              --port=80 \
-              --target-port=3000 \
-              -n ${{ env.K8S_NAMESPACE }}
-          else
-            echo "Service already exists"
-          fi
-
-      # 13. Show deployment status
-      - name: Show deployment info
-        run: |
-          echo "=== Pods ==="
-          kubectl -n ${{ env.K8S_NAMESPACE }} get pods -l app=${{ env.CONTAINER_NAME }} -o wide
-          
-          echo "=== Services ==="
-          kubectl -n ${{ env.K8S_NAMESPACE }} get svc
-          
-          echo "=== Deployment Details ==="
-          kubectl -n ${{ env.K8S_NAMESPACE }} describe deployment/${{ env.DEPLOYMENT_NAME }}
+          context: ./focus-timer-app
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest

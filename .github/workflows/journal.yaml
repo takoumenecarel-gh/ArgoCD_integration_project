@@ -14,6 +14,8 @@ env:
   AWS_REGION: us-east-1
   IMAGE_NAME: journal
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+  OIDC_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_OIDC }}
 
 jobs:
   build-scan-push:
@@ -29,11 +31,11 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_OIDC }}
+          role-to-assume: ${{ env.OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       # ---------------------------
-      # Create ECR Repository (ACTION)
+      # Create ECR Repository
       # ---------------------------
       - name: Create ECR repository if needed
         uses: int128/create-ecr-repository-action@v1
@@ -63,7 +65,7 @@ jobs:
         with:
           image-ref: ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
           severity: CRITICAL,HIGH
-          exit-code: 0  # trivy scan failed and i changed it to 0
+          exit-code: 0
           ignore-unfixed: true
 
       # ---------------------------
