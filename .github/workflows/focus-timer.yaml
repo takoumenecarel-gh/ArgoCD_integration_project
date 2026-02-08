@@ -19,6 +19,7 @@ env:
   DEPLOYMENT_NAME: focus-deployment
   CONTAINER_NAME: focus-timer
   K8S_NAMESPACE: dev
+  DEPLOYMENT_FILE_PATH: ./focus-timer-app/focus-deployment.yaml   # <-- update this if your YAML is elsewhere
 
 jobs:
   build-scan-push-deploy:
@@ -42,7 +43,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ---------------------------
-      # 3. Configure EKS Access (SAFE - optional)
+      # 3. Configure EKS Access (optional)
       # ---------------------------
       - name: Create EKS access entry (if not exists)
         run: |
@@ -118,7 +119,7 @@ jobs:
             --name $EKS_CLUSTER_NAME
 
       # ---------------------------
-      # 10. Ensure namespace exists (FIX)
+      # 10. Ensure namespace exists
       # ---------------------------
       - name: Ensure namespace exists
         run: |
@@ -129,11 +130,11 @@ jobs:
       # ---------------------------
       - name: Deploy to EKS
         run: |
-          sed -i "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }}|g" ./focus-deployment.yaml
-          kubectl apply -f ./focus-deployment.yaml
+          sed -i "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/$IMAGE_NAME:${{ github.run_number }}|g" $DEPLOYMENT_FILE_PATH
+          kubectl apply -f $DEPLOYMENT_FILE_PATH
 
       # ---------------------------
-      # 12. Verify rollout !
+      # 12. Verify rollout
       # ---------------------------
       - name: Verify rollout status
         run: |
