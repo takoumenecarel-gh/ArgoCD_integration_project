@@ -1,4 +1,4 @@
-name: journal pipeline
+name: focus-timer pipeline
 
 on:
   push:
@@ -12,12 +12,12 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  IMAGE_NAME: journal
+  IMAGE_NAME: focus-timer
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
   OIDC_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_OIDC }}
-  DEPLOYMENT_NAME: journal-deployment
-  CONTAINER_NAME: journal
+  DEPLOYMENT_NAME: focus-deployment
+  CONTAINER_NAME: focus-timer
   K8S_NAMESPACE: dev
 
 jobs:
@@ -80,7 +80,7 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./study-journal-app
+          context: ./focus-timer-app
           push: false
           tags: |
             ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
@@ -102,7 +102,7 @@ jobs:
       - name: Push image to Amazon ECR
         uses: docker/build-push-action@v5
         with:
-          context: ./study-journal-app
+          context: ./focus-timer-app
           push: true
           tags: |
             ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
