@@ -97,14 +97,7 @@ jobs:
           version: 'v1.29.0'
 
       # ---------------------------
-      # Create dev namespace if missing
-      # ---------------------------
-      - name: Create dev namespace
-        run: |
-          kubectl get namespace ${{ env.K8S_NAMESPACE }} || kubectl create namespace ${{ env.K8S_NAMESPACE }}
-
-      # ---------------------------
-      # Update kubeconfig for EKS
+      # Update kubeconfig for EKS (must come before kubectl commands!)
       # ---------------------------
       - name: Update kubeconfig
         run: |
@@ -112,6 +105,13 @@ jobs:
             --name ${{ env.EKS_CLUSTER_NAME }} \
             --region ${{ env.AWS_REGION }} \
             --role-arn ${{ secrets.AWS_ROLE_ARN_OIDC }}
+
+      # ---------------------------
+      # Create dev namespace if missing
+      # ---------------------------
+      - name: Create dev namespace
+        run: |
+          kubectl get namespace ${{ env.K8S_NAMESPACE }} || kubectl create namespace ${{ env.K8S_NAMESPACE }}
 
       # ---------------------------
       # Deploy Docker image to EKS
