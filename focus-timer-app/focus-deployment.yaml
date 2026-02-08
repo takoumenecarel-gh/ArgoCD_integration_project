@@ -1,27 +1,25 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: dev
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: focus-deployment
-  namespace: dev        # <-- Deploys into 'dev'
+  namespace: dev  # Make sure this matches your K8S_NAMESPACE
   labels:
-    app: focus
+    app: focus-timer
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: focus
+      app: focus-timer
   template:
     metadata:
       labels:
-        app: focus
+        app: focus-timer
     spec:
+      serviceAccountName: focus-timer-sa   # Optional: for ECR IRSA auth
       containers:
-        - name: focus
-          image: focus-timer
+        - name: focus-timer
+          image: IMAGE_PLACEHOLDER         # Will be replaced in GitHub Actions with SHA-tagged image
           ports:
             - containerPort: 80
+      imagePullSecrets:
+        - name: ecr-registry               # Optional: only needed if not using IRSA
