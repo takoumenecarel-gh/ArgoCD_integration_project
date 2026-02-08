@@ -23,7 +23,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # ---------------------------
+      # --------------------------
       # AWS Auth (OIDC)
       # ---------------------------
       - name: Configure AWS credentials
