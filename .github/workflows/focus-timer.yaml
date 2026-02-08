@@ -15,8 +15,8 @@ env:
   IMAGE_NAME: focus-timer
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}  # Add this secret
-  DEPLOYMENT_NAME: focus-deployment
-  CONTAINER_NAME: focus-timer
+  DEPLOYMENT_NAME: focus-deployment  # deployment_file_name
+  CONTAINER_NAME: focus-timer   # 
 
 jobs:
   build-scan-push-deploy:

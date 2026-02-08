@@ -1,7 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: focus-deployment
+  namespace: dev        # <-- Deploys into 'dev'
   labels:
     app: focus
 spec:
@@ -16,6 +22,6 @@ spec:
     spec:
       containers:
         - name: focus
-          image: focus-timer                      # ${{ secrets.AWS_ACCOUNT_ID }}/focus:${{ github.run_number }}
+          image: focus-timer
           ports:
             - containerPort: 80
