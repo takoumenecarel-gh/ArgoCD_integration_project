@@ -124,6 +124,20 @@ jobs:
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.29.0'
+      - name: Create EKS Access Entry
+        run: |
+          aws eks create-access-entry \
+            --cluster-name ${{ secrets.EKS_CLUSTER_NAME }} \
+            --principal-arn ${{ secrets.AWS_ROLE_ARN_OIDC }} \
+            --type STANDARD || echo "Access Entry already exists, skipping..."
+            
+      - name: Attach EKS Access Policy
+        run: |
+          aws eks associate-access-policy \
+            --cluster-name ${{ secrets.EKS_CLUSTER_NAME }} \
+            --principal-arn ${{ secrets.AWS_ROLE_ARN_OIDC }} \
+            --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+            --access-scope type=cluster    
 
       # ---------------------------
       # Update kubeconfig (EKS)
