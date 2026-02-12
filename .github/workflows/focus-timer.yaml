@@ -13,7 +13,7 @@ env:
   #confirm github repository secrets and variables are set up
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}   #updated ---> added complete AWS_registry value ***
   AWS_ROLE_ARN_OIDC: ${{ secrets.AWS_ROLE_ARN_OIDC}}
-  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
   #review and update environment variables as needed
   AWS_REGION: us-east-1         # should match cluster region
   APP_NAME: focus               # ***update ---> app name = image name = ECR repo name = namespace ***
