@@ -19,7 +19,7 @@ env:
   SERVICE_PORT: 80
   REPLICAS: 2
   APPLICATION_REPO: focus-timer-app/
-  MANIFESTS_DIR: focus-timer-app/k8s  # <-- your manifest folder
+  MANIFESTS_DIR: focus-timer-app/k8s-manifests  # <-- your manifest folder
 
 jobs:
   build-scan-push-deploy:
