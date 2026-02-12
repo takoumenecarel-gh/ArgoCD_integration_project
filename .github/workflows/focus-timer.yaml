@@ -19,6 +19,7 @@ env:
   SERVICE_PORT: 80
   REPLICAS: 2
   APPLICATION_REPO: focus-timer-app/
+  MANIFESTS_DIR: focus-timer-app/k8s  # <-- your manifest folder
 
 jobs:
   build-scan-push-deploy:
@@ -61,13 +62,13 @@ jobs:
           project: ${{ env.APP_NAME }}
           path: ${{ env.APPLICATION_REPO }}
           format: 'HTML'
-          out: '${{ env.APPLICATION_REPO}}reports'
+          out: '${{ env.APPLICATION_REPO }}reports'
 
       - name: Upload Dependency Report
         uses: actions/upload-artifact@v4
         with:
           name: dep-check-report
-          path: ${{ env.APPLICATION_REPO}}reports
+          path: ${{ env.APPLICATION_REPO }}reports
 
       - name: Build Docker image
         uses: docker/build-push-action@v5
@@ -91,7 +92,10 @@ jobs:
       - name: Create ECR repository if missing
         run: |
           aws ecr describe-repositories --repository-names ${{ env.APP_NAME }} || \
-          aws ecr create-repository --repository-name ${{ env.APP_NAME }} --image-tag-mutability MUTABLE --image-scanning-configuration scanOnPush=true
+          aws ecr create-repository \
+            --repository-name ${{ env.APP_NAME }} \
+            --image-tag-mutability MUTABLE \
+            --image-scanning-configuration scanOnPush=true
 
       - name: Push image to ECR
         uses: docker/build-push-action@v5
@@ -113,16 +117,25 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
 
-      - name: Deploy to EKS
+      - name: Set deployment environment variables
         run: |
-          # ---------------------------
-          # Assume the namespace already exists
-          # ---------------------------
+          export APP_NAME=${{ env.APP_NAME }}
+          export REPLICAS=${{ env.REPLICAS }}
+          export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+          export CONTAINER_PORT=${{ env.CONTAINER_PORT }}
+          export IMAGE_TAG=${{ github.run_number }}
+          export SERVICE_TYPE=${{ env.SERVICE_TYPE }}
+          export SERVICE_PORT=${{ env.SERVICE_PORT }}
+
+      - name: Deploy to EKS with envsubst
+        run: |
           NAMESPACE=${{ env.APP_NAME }}
 
-          # Deploy application
-          kubectl apply -f ./k8s-manifests/focus-deployment.yaml -n $NAMESPACE
-          kubectl apply -f ./k8s-manifests/focus-service.yaml -n $NAMESPACE
+          # Deploy Deployment
+          envsubst < ${{ env.MANIFESTS_DIR }}/focus-deployment.yaml | kubectl apply -n $NAMESPACE -f -
+
+          # Deploy Service
+          envsubst < ${{ env.MANIFESTS_DIR }}/focus-service.yaml | kubectl apply -n $NAMESPACE -f -
 
           # Show pods and services
           kubectl get pods -n $NAMESPACE
