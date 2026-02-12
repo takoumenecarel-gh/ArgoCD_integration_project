@@ -19,7 +19,7 @@ env:
   SERVICE_PORT: 80
   REPLICAS: 2
   APPLICATION_REPO: focus-timer-app/
-  MANIFESTS_DIR: focus-timer-app/k8s-manifests  # <-- your manifest folder
+  MANIFESTS_DIR: focus-timer-app/k8s-manifests  # <-- update to your folder
 
 jobs:
   build-scan-push-deploy:
@@ -27,7 +27,7 @@ jobs:
 
     steps:
       # ---------------------------
-      # Checkout code
+      # Checkout source
       # ---------------------------
       - name: Checkout source
         uses: actions/checkout@v4
@@ -70,6 +70,9 @@ jobs:
           name: dep-check-report
           path: ${{ env.APPLICATION_REPO }}reports
 
+      # ---------------------------
+      # Build Docker Image
+      # ---------------------------
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -78,6 +81,9 @@ jobs:
           load: true
           tags: ${{ env.ECR_REGISTRY }}/${{ env.APP_NAME }}:${{ github.run_number }}
 
+      # ---------------------------
+      # Trivy vulnerability scan
+      # ---------------------------
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@0.20.0
         with:
@@ -117,6 +123,9 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
 
+      # ---------------------------
+      # Set deployment environment variables for envsubst
+      # ---------------------------
       - name: Set deployment environment variables
         run: |
           export APP_NAME=${{ env.APP_NAME }}
@@ -127,6 +136,9 @@ jobs:
           export SERVICE_TYPE=${{ env.SERVICE_TYPE }}
           export SERVICE_PORT=${{ env.SERVICE_PORT }}
 
+      # ---------------------------
+      # Deploy to EKS with envsubst
+      # ---------------------------
       - name: Deploy to EKS with envsubst
         run: |
           NAMESPACE=${{ env.APP_NAME }}
