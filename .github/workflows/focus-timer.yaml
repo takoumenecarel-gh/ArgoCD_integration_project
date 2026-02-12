@@ -46,7 +46,7 @@ jobs:
       # ---------------------------
       # Static Code & Dependency Scans
       # ---------------------------
-      # SonarQube Scan (optional, commented)
+      # SonarQube Scan (optional)
       # - name: SonarQube Scan
       #   uses: sonarsource/sonarqube-scan-action@master
       #   env:
@@ -115,13 +115,13 @@ jobs:
 
       - name: Deploy to EKS
         run: |
-          # Create namespace if missing
+          # Auto-create namespace if it doesn't exist
           kubectl get namespace ${{ env.APP_NAME }} || kubectl create namespace ${{ env.APP_NAME }}
 
           # Deploy application
           kubectl apply -f ./k8s-manifests/deployment.yaml -n ${{ env.APP_NAME }}
           kubectl apply -f ./k8s-manifests/service.yaml -n ${{ env.APP_NAME }}
 
-          # Show status
+          # Show pods and services status
           kubectl get pods -n ${{ env.APP_NAME }}
           kubectl get svc -n ${{ env.APP_NAME }}
