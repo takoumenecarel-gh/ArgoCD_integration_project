@@ -15,12 +15,12 @@ public class MenuService {
 
     private void initializeMenu() {
         // Starters (2)
-        menu.add(new MenuItem("Garlic Bread", 5.00, "Starters"));
-        menu.add(new MenuItem("Soup of the Day", 6.50, "Starters"));
+        menu.add(new MenuItem("Eguci soup", 5.00, "Starters"));
+        menu.add(new MenuItem("Ndolè", 6.50, "Starters"));
 
         // Main Courses (3)
-        menu.add(new MenuItem("Grilled Chicken", 15.00, "Main Courses"));
-        menu.add(new MenuItem("Veggie Pasta", 12.50, "Main Courses"));
+        menu.add(new MenuItem("Suya", 15.00, "Main Courses"));
+        menu.add(new MenuItem("Fufu", 12.50, "Main Courses"));
         menu.add(new MenuItem("Beef Burger", 13.00, "Main Courses"));
 
         // Desserts (2)
