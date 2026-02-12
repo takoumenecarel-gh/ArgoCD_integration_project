@@ -121,8 +121,8 @@ jobs:
           NAMESPACE=${{ env.APP_NAME }}
 
           # Deploy application
-          kubectl apply -f ./k8s-manifests/deployment.yaml -n $NAMESPACE
-          kubectl apply -f ./k8s-manifests/service.yaml -n $NAMESPACE
+          kubectl apply -f ./k8s-manifests/focus-deployment.yaml -n $NAMESPACE
+          kubectl apply -f ./k8s-manifests/focus-service.yaml -n $NAMESPACE
 
           # Show pods and services
           kubectl get pods -n $NAMESPACE
