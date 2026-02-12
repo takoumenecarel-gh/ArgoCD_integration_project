@@ -190,5 +190,5 @@ jobs:
             kubectl get svc -n $APP_NAME
             
         # ***Had to adjust as above since regular formating below was throwing an error with the manifest files
-        # kubectl apply -f k8s-manifests/fous-deployment.yaml -n ${{ env.APP_NAME }}
-        # kubectl apply -f k8s-manifests/focus-service.yaml -n ${{ env.APP_NAME }}
+        # kubectl apply -f k8s-manifests/deployment.yaml -n ${{ env.APP_NAME }}
+        # kubectl apply -f k8s-manifests/service.yaml -n ${{ env.APP_NAME }}
