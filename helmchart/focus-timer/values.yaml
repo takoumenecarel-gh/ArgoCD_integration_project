@@ -1,13 +1,12 @@
 # Default values for focus.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-#Deploynment values
+#Deploynment values !
 
 app: focus
 replicas: 2
-ECR_REGISTRY:
-IMAGE_TAG: 
-
+ECR_REGISTRY: 351554785424.dkr.ecr.us-east-1.amazonaws.com
+IMAGE_TAG: 54
 
 
 service:
