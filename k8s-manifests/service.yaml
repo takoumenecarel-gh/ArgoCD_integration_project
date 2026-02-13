@@ -10,5 +10,5 @@ spec:
     app: ${APP_NAME}
   ports:
     - protocol: TCP
-      port: ${SERVICE_PORT}        # "Service Port." It is the port external users hit on the Load Balancer
-      targetPort: ${CONTAINER_PORT}  # The port exposed on your image (from Docker Build image) - port where your application is listening inside the container - ContainerPort
+      port: ${SERVICE_PORT}        
+      targetPort: ${CONTAINER_PORT} 
