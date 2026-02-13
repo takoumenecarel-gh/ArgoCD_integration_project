@@ -97,9 +97,9 @@ jobs:
           exit-code: 0
           ignore-unfixed: true
 
-      # ---------------------------
+      # --------------------------
       # Push to ECR 
-      # ---------------------------
+      # --------------------------
       - name: Create ECR repository if not exists
         run: |
           aws ecr describe-repositories --repository-names ${{ env.APP_NAME }} || \
@@ -117,9 +117,9 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.APP_NAME }}:${{ github.run_number }}
             ${{ env.ECR_REGISTRY }}/${{ env.APP_NAME }}:latest
 
-      # ---------------------------
+      # --------------------------
       # Setup Kubectl
-      # ---------------------------
+      # --------------------------
       - name: Setup Kubectl
         uses: azure/setup-kubectl@v3
         with:
@@ -184,7 +184,7 @@ jobs:
             kubectl get pods -n $APP_NAME
             sleep 2
 
-            echo "-----------------------------------------------------"
+            echo "----------------------------------------------------"
             echo "Here is a list of services in $APP_NAME namespace..."
             echo "-----------------------------------------------------"
             kubectl get svc -n $APP_NAME
