@@ -6,10 +6,10 @@ metadata:
   labels:
     app: {{ .Values.app }}
 spec:
-  type: {{ Values.service.type}}
+  type: {{ .Values.service.type}}
   selector:
     app: {{ .Values.app }}
   ports:
     - protocol: {{ .Values.service.protocol }}
-      port: {{ .Values.service.port}}       # "Service Port." It is the port external users hit on the Load Balancer
+      port: {{ .Values.service.port}}               # "Service Port." It is the port external users hit on the Load Balancer
       targetPort: {{ .Values.service.target_port}}  # The port exposed on your image (from Docker Build image) - port where your application is listening inside the container - ContainerPort
